@@ -131,12 +131,13 @@ internal static class Program
             {
                 case PlayCardTask playCard when playCard.Source is not null:
                 {
-                    var (targetIndex, targetSide) = EncodeTarget(playCard.Controller, playCard.Target);
+                    var (targetIndex, targetSide, targetZonePos, targetCardId) = EncodeTarget(playCard.Controller, playCard.Target);
 
                     var action = new Dictionary<string, object?>
                     {
                         ["type"] = "play_card",
-                        ["hand_index"] = playCard.Source.ZonePosition,
+                        ["hand_index"] = EncodeZonePositionAsIndex(playCard.Source.ZonePosition),
+                        ["source_zone_pos"] = playCard.Source.ZonePosition,
                         ["target_index"] = targetIndex ?? -1,
                         ["position"] = playCard.ZonePosition,
                         ["card_id"] = playCard.Source.Card.Id,
@@ -145,6 +146,14 @@ internal static class Program
                     {
                         action["target_side"] = targetSide;
                     }
+                    if (targetZonePos.HasValue)
+                    {
+                        action["target_zone_pos"] = targetZonePos.Value;
+                    }
+                    if (!string.IsNullOrEmpty(targetCardId))
+                    {
+                        action["target_card_id"] = targetCardId;
+                    }
 
                     encoded.Add(action);
                     break;
@@ -152,18 +161,27 @@ internal static class Program
 
                 case MinionAttackTask minionAttack when minionAttack.Source is not null:
                 {
-                    var (targetIndex, targetSide) = EncodeTarget(minionAttack.Controller, minionAttack.Target);
+                    var (targetIndex, targetSide, targetZonePos, targetCardId) = EncodeTarget(minionAttack.Controller, minionAttack.Target);
 
                     var action = new Dictionary<string, object?>
                     {
                         ["type"] = "attack",
-                        ["attacker_index"] = minionAttack.Source.ZonePosition,
+                        ["attacker_index"] = EncodeZonePositionAsIndex(minionAttack.Source.ZonePosition),
+                        ["source_zone_pos"] = minionAttack.Source.ZonePosition,
                         ["target_index"] = targetIndex ?? -1,
                         ["card_id"] = minionAttack.Source.Card.Id,
                     };
                     if (targetSide is not null)
                     {
                         action["target_side"] = targetSide;
+                    }
+                    if (targetZonePos.HasValue)
+                    {
+                        action["target_zone_pos"] = targetZonePos.Value;
+                    }
+                    if (!string.IsNullOrEmpty(targetCardId))
+                    {
+                        action["target_card_id"] = targetCardId;
                     }
 
                     encoded.Add(action);
@@ -172,7 +190,7 @@ internal static class Program
 
                 case HeroAttackTask heroAttack:
                 {
-                    var (targetIndex, targetSide) = EncodeTarget(heroAttack.Controller, heroAttack.Target);
+                    var (targetIndex, targetSide, targetZonePos, targetCardId) = EncodeTarget(heroAttack.Controller, heroAttack.Target);
 
                     var action = new Dictionary<string, object?>
                     {
@@ -185,6 +203,14 @@ internal static class Program
                     {
                         action["target_side"] = targetSide;
                     }
+                    if (targetZonePos.HasValue)
+                    {
+                        action["target_zone_pos"] = targetZonePos.Value;
+                    }
+                    if (!string.IsNullOrEmpty(targetCardId))
+                    {
+                        action["target_card_id"] = targetCardId;
+                    }
 
                     encoded.Add(action);
                     break;
@@ -192,7 +218,7 @@ internal static class Program
 
                 case HeroPowerTask heroPower:
                 {
-                    var (targetIndex, targetSide) = EncodeTarget(heroPower.Controller, heroPower.Target);
+                    var (targetIndex, targetSide, targetZonePos, targetCardId) = EncodeTarget(heroPower.Controller, heroPower.Target);
 
                     var action = new Dictionary<string, object?>
                     {
@@ -202,6 +228,14 @@ internal static class Program
                     if (targetSide is not null)
                     {
                         action["target_side"] = targetSide;
+                    }
+                    if (targetZonePos.HasValue)
+                    {
+                        action["target_zone_pos"] = targetZonePos.Value;
+                    }
+                    if (!string.IsNullOrEmpty(targetCardId))
+                    {
+                        action["target_card_id"] = targetCardId;
                     }
 
                     encoded.Add(action);
@@ -228,20 +262,30 @@ internal static class Program
         return encoded;
     }
 
-    private static (int? TargetIndex, string? TargetSide) EncodeTarget(Controller actor, ICharacter? target)
+    private static (int? TargetIndex, string? TargetSide, int? TargetZonePos, string? TargetCardId) EncodeTarget(Controller actor, ICharacter? target)
     {
         if (target is null)
         {
-            return (null, null);
+            return (null, null, null, null);
         }
 
         var side = target.Controller == actor ? "player" : "opponent";
+        var targetCardId = target.Card?.Id;
         return target switch
         {
-            Hero => (-1, side),
-            Minion minion => (minion.ZonePosition, side),
-            _ => (null, null),
+            Hero => (-1, side, null, targetCardId),
+            Minion minion => (EncodeZonePositionAsIndex(minion.ZonePosition), side, minion.ZonePosition, targetCardId),
+            _ => (null, null, null, targetCardId),
         };
+    }
+
+    private static int EncodeZonePositionAsIndex(int zonePosition)
+    {
+        if (zonePosition <= 0)
+        {
+            return zonePosition;
+        }
+        return zonePosition - 1;
     }
 
     private static void WriteError(string message)
